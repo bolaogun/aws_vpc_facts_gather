@@ -1,0 +1,30 @@
+---
+# To us this role the variable "mfa_token" will need to be passed in as
+# an extra variable at runtime
+#
+# This role is to be used when MFA is being used and the account that
+# is eing used has to assume an AWS role to perform subsequent tasks
+# 
+# The end result of this play is to set the facts:
+# sts_aws_access_key
+# sts_aws_secret_key
+# sts_security_token
+#
+# These facts can then be subsequently used while calling relevant ec2_ modules
+#
+# Switch Roles 
+#
+- name: Switch roles
+  sts_assume_role:
+    role_arn: "arn:aws:iam::{{ inp_dg_acct_num }}:role/{{ target_role_nm }}"
+    mfa_serial_number: "{{ mfa_serial_number | default(omit) }}"
+    mfa_token: "{{ mfa_token | default(omit) }}"
+    region:    "{{ aws_region }}"
+    role_session_name: "role_{{ target_role_nm }}_Acquired"
+  register: assumed_role
+
+- name: Retrieve STS Credentials
+  set_fact:
+    sts_aws_access_key: "{{ hostvars['localhost']['assumed_role'].sts_creds.access_key }}"
+    sts_aws_secret_key: "{{ hostvars['localhost']['assumed_role'].sts_creds.secret_key }}"
+    sts_security_token: "{{ hostvars['localhost']['assumed_role'].sts_creds.session_token }}"

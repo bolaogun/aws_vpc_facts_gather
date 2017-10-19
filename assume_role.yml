@@ -1,0 +1,12 @@
+---
+
+- name: Provision VPC Resources
+  hosts: localhost
+  connection: local
+  serial: 1
+  gather_facts: false
+  tags: vpc_provisioning
+  vars: 
+    - aws_region: eu-west-2
+  roles:
+    - assume_role

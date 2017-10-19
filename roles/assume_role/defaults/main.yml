@@ -1,0 +1,15 @@
+---
+
+# The folowing variables ideally should be passed into the playbook
+# via extra variables originating from the command line or an ansible tower 
+# Survey
+#
+# The variable "mfa_token" MUST be provided at runtime
+
+#mfa_serial_number: "arn:aws:iam::946951875991:mfa/Bola.Ogunlana"
+#mfa_serial_number: "arn:aws:iam::164977513687:mfa/Bola.ogunlana"
+inp_dg_acct_num:   070441326964
+target_role_nm:    Ansible_Networks
+#target_role_nm:    CDG_SYSOPS 
+#target_role_nm:    CLO_SYSOPS 
+aws_region:        "eu-west-2"

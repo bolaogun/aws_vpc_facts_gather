@@ -1,0 +1,13 @@
+---
+
+- name: Get facts about VPC
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: vpc_facts
+  vars:
+    - aws_region: eu-west-2
+    - inp_vpc_nm: p001clovpc002-alm
+  roles:
+    - assume_role
+    - vpc_facts

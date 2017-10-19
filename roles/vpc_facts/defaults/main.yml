@@ -1,0 +1,12 @@
+---
+
+# 
+# It is convenient to abstract out the variables below:
+#
+aws_region:     "eu-west-2"
+# 
+# The following variables correspond to those that may be inputted
+# via an Ansible Tower Survey (or as extra variables)
+# 
+inp_vpc_nm: "vpc-name" 
+inp_vpc_id: "vpc-xxxxxx"

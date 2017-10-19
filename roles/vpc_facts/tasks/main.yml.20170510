@@ -1,0 +1,515 @@
+---
+
+# roles/vpc/tasks/main.yml
+
+# First task : creating the VPC.
+#
+# The "sts_" prefixed variables are set if role acquisition is required
+# To have these variables set make sure you play the "assume_role" play prior
+# to attempting to create the VPc resources
+#
+# We are using the variables set in the mains.yml file.
+# The module gives us back its result,
+# which contains information about our new VPC. 
+# We register it in the variable my_vpc.
+
+- name:               Create VPC
+  ec2_vpc_net:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"    
+    state:            present
+    name:             "{{ inp_vpc_nm }}"
+    cidr_block:       "{{ inp_vpc_cidr_block }}"
+    region:           "{{ aws_region }}"
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+  register: my_vpc
+
+
+- name: Show variables for new VPC
+  debug: 
+    var: my_vpc
+    verbosity: 3
+# We now use the set_fact module 
+# to save the id of the VPC in a new variable.
+
+- name:               Set VPC ID in variable
+  set_fact:
+    vpc_id:           "{{ my_vpc.vpc.id }}"
+
+
+# Create Virtual Private Gateway and attach it to the new VPC just 
+# created
+#
+
+- name: Create VGW
+  ec2_vpc_vgw:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:            present
+    region:           "{{ aws_region }}"
+    vpc_id:           "{{ vpc_id }}"
+    name:             "{{ inp_vpc_vgw_nm }}"
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+  register: my_vgw
+
+- name: Show variables for new VGW
+  debug:
+    var: my_vgw
+    verbosity: 3
+
+# We now use the set_fact module 
+# to save the id of the VGW in a new variable.
+
+- name:               Set VGW ID in variable
+  set_fact:
+    vgw_id:           "{{ my_vgw.vgw.id }}"
+
+
+# Creating Subnet #1 in the VPC.
+# A subnet needs to be located in an Availability Zone (or AZ).
+# Again, we register the results in a variable for later.
+
+- name:               "Create Subnet I" 
+  ec2_vpc_subnet:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:            present
+    vpc_id:           "{{ vpc_id }}"
+    cidr:             "{{ inp_private_subnet_1_cidr }}"
+    az:               "{{ aws_region }}a"
+    region:           "{{ aws_region }}"
+    resource_tags:
+      Name:           "{{ inp_private_subnet_1_nm }}"
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+  register: my_private_subnet_1
+
+- name: "Show variables for new Subnet 1"
+  debug:
+    var: my_private_subnet_1
+    verbosity: 3
+
+# We save the id of the Public Subnet in a new variable.
+
+- name:               "Set Private Subnet 1 ID in variable"
+  set_fact:
+    private_subnet_1_id: "{{ my_private_subnet_1.subnet.id }}"
+
+
+# Creating Subnet #2 1in the VPC.
+# A subnet needs to be located in an Availability Zone (or AZ).
+# Again, we register the results in a variable for later.
+
+- name:               "Create Subnet #2"
+  ec2_vpc_subnet:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:            present
+    vpc_id:           "{{ vpc_id }}"
+    cidr:             "{{ inp_private_subnet_2_cidr }}"
+    az:               "{{ aws_region }}b"
+    region:           "{{ aws_region }}"
+    resource_tags:
+      Name:           "{{ inp_private_subnet_2_nm }}"
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+  register: my_private_subnet_2
+
+- name: "Show variables for new Subnet 2"
+  debug:
+    var: my_private_subnet_2
+    verbosity: 3
+
+# We save the id of the Private Subnet in a new variable.
+
+- name:               "Set Private Subnet 2 ID in variable"
+  set_fact:
+    private_subnet_2_id: "{{ my_private_subnet_2.subnet.id }}"
+
+# Most VPCsneed at least one Internet Gateway.
+# This component allows traffic between the VPC and the outside world.
+# For our purposes NO Internet Gateway required !!!!!!!
+#- name:               Create Internet Gateway for VPC
+#  ec2_vpc_igw:
+#    vpc_id:           "{{ vpc_id }}"
+#    region:           "{{ aws_region }}"
+#    state:            present
+#  register: my_vpc_igw
+#
+#
+## We save the id of the Internet Gateway in a new variable.
+#
+#- name:               Set Internet Gateway ID in variable
+#  set_fact:
+#    igw_id:           "{{ my_vpc_igw.gateway_id }}"
+#
+
+# Now we set up a Route Table. 
+# We attach that Route Table to the Private Subnets.
+# The route table will also contain 
+# a route for resources inside the VPC
+
+- name:               Set up Private subnet route table
+  ec2_vpc_route_table:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:            present
+    vpc_id:           "{{ vpc_id }}"
+    region:           "{{ aws_region }}"
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Name:           "{{ inp_route_tbl_nm }}"
+      Environment:    "{{ vpc_environment }}"
+    subnets:
+      - "{{ private_subnet_1_id }}"
+      - "{{ private_subnet_2_id }}"
+    routes:
+      - dest:         "10.0.0.0/8"
+        gateway_id:   "{{ vgw_id }}"
+  register: my_route_table
+
+- name: Show variables for new Route Table
+  debug:
+    var: my_route_table
+    verbosity: 3
+
+# We save the id of the Routing Table in a new variable.
+
+- name:               Set Routing Table ID in variable
+  set_fact:
+    route_table_id: "{{ my_route_table.route_table.id }}"
+
+
+# Create Network Access Control List as specified
+- name:                 Create and associate Network ACL with subnets
+  ec2_vpc_nacl:
+    aws_access_key:     "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:     "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:     "{{ sts_security_token | default(omit) }}"
+    state: 		present
+    vpc_id:		"{{ vpc_id }}" 
+    name:		"{{ inp_nacl_nm }}" 
+    region:		"{{ aws_region }}" 
+    subnets:
+      - "{{ private_subnet_1_id }}"
+      - "{{ private_subnet_2_id }}"
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+    ingress: [
+        # rule no, protocol, allow/deny, cidr, icmp_code, icmp_type,
+        #                                             port from, port to
+        [100, 'all', 'allow', '10.0.0.0/8', null, null, null, null],
+        [200, 'all', 'deny',  '0.0.0.0/8', null, null, null, null],
+    ]
+    egress: [
+        [300, 'all', 'allow', '10.0.0.0/8', null, null, null, null],
+        [400, 'all', 'deny', '0.0.0.0/0', null, null, null, null],
+    ]
+
+# Create Security Group according to the specification
+# Noticed that timeouts occur when theSecurity Group
+# already exists, so added in some delay/retry logic
+- name:               Create Security Group
+  ec2_group:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:            present
+    name:             "{{ inp_vpc_sec_grp_nm }}"
+    description:      "{{ sec_grp_desc }}"
+    vpc_id:           "{{ vpc_id }}"
+    region:           "{{ aws_region }}"
+    rules:
+      - proto:        all
+        cidr_ip:      "{{ sec_grp_ip }}/8"
+    rules_egress:
+      - proto: all
+        cidr_ip: "0.0.0.0/0"
+  register: my_sec_grp 
+
+  until: my_sec_grp.failed is not defined or my_sec_grp.failed == false
+  retries: "3"
+  delay: "30"
+
+- name: Show variables for new security group
+  debug:
+    var: my_sec_grp
+    verbosity: 3
+
+# We save the id of the Security Group into new variable.
+
+- name:               Set Security Group in variable
+  set_fact:
+    sec_grp_id: "{{ my_sec_grp.group_id }}"
+
+- name: Tag the Security Group just created
+  ec2_tag:
+      aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+      aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+      security_token:   "{{ sts_security_token | default(omit) }}"
+      resource:         "{{ sec_grp_id }}"
+      state: present
+      region:           "{{ aws_region }}"
+      tags:
+        Owner:          "{{ vpc_owner }}"
+        Name:           "{{ inp_vpc_sec_grp_nm }}"
+        Environment:    "{{ vpc_environment }}"
+
+# Create customer gateway #1
+- name:              "Create Customer Gateway #1"
+  ec2_customer_gateway:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:      present
+    bgp_asn:    "{{ inp_bgpas_cust_gw1 }}"
+    ip_address: "{{ inp_cust_gw1_ip_addr }}" 
+    name:       "{{ inp_cust_gw1_nm }}" 
+    region:     "{{ aws_region }}" 
+  register: my_cgw1
+
+- name: Show variables for new Gateway I
+  debug:
+    var: my_cgw1
+    verbosity: 3
+
+# We save the id of the customer gateway 1 a new variable.
+# I noticed that the gateway Id variable is stored in either
+# a Dict or List dependent upon if it already exists, hence
+# the logic below.
+
+- name:               Set Customer Gateway 1 ID in variable
+  set_fact:
+    cust_gw1_id: "{{ my_cgw1.gateway.customer_gateway[0].customer_gateway_id }}"
+  register: result
+  ignore_errors: True
+
+- name:               Set Customer Gateway 1 ID in variable(2)
+  set_fact:
+    cust_gw1_id: "{{ my_cgw1.gateway.customer_gateway.customer_gateway_id }}"
+  when: result|failed
+
+# Create customer gateway #2
+- name:              "Create Customer Gateway #2"
+  ec2_customer_gateway:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:      present
+    bgp_asn:    "{{ inp_bgpas_cust_gw2 }}"
+    ip_address: "{{ inp_cust_gw2_ip_addr }}" 
+    name:       "{{ inp_cust_gw2_nm }}" 
+    region:     "{{ aws_region }}" 
+  register: my_cgw2
+
+- name: Show variables for new Gateway II
+  debug:
+    var: my_cgw2
+    verbosity: 3
+
+# We save the id of the customer gateway 2 a new variable.
+# Forst time around it appears we have a dict
+# Subsequently (when already created, we get list
+
+- name:               Set Customer Gateway 2 ID in variable
+  set_fact:
+    cust_gw2_id: "{{ my_cgw2.gateway.customer_gateway[0].customer_gateway_id }}"
+  register: result
+  ignore_errors: True
+
+- name:               Set Customer Gateway 2 ID in variable(2)
+  set_fact:
+    cust_gw2_id: "{{ my_cgw2.gateway.customer_gateway.customer_gateway_id }}"
+  when: result|failed
+
+# Create an S3 bucket to hold the VPN config file about to be created
+- name: Create an empty S3 bucket
+  s3:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    bucket:           "{{ inp_s3_bucket_nm }}"
+    mode:             create
+    permission:       public-read
+
+# Create VPN GW1
+- name:              "Create VPN Gateway #1"
+  ec2_vpn_connection:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state: 		present
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+      Name:           "{{ inp_vpn_gw1_nm }}"
+    cgw:              "{{ cust_gw1_id }}"    
+    vpn_gw:           "{{ vgw_id }}"
+    vpc:              "{{ vpc_id }}"
+    region:           "{{ aws_region }}" 
+  register: my_vpn_gw1
+
+- name: Show variables for new VPN Gateway 1
+  debug:
+    var: my_vpn_gw1
+    verbosity: 3
+
+# Save the VPN Gateway Id into a variable
+- name: Set VPN Gateway 1 ID into a variable
+  set_fact:
+    vpn_gw1_id: "{{ my_vpn_gw1.vpn_conn.vpn_gateway_id }}"
+
+# Display the Contents of the VPN GW1 file 
+- name: Display the Contents of the VPN GW1 configuration file
+  debug:
+    var: my_vpn_gw1.vpn_conn.customer_gateway_configuration
+    verbosity: 3
+
+# Save the Response to a file for VPN Gw1
+- name: Write out the response for VPN GW1 to a file
+  copy: 
+      content: "{{ my_vpn_gw1.vpn_conn.customer_gateway_configuration }}" 
+      dest:    "{{ inp_vpn_gw1_file }}"
+
+# Copy the file to the S3 Bucket supplied
+- name: "Copy the VPN GW1 configuration file to S3 bucket ({{ inp_s3_bucket_nm }} "
+  s3:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    bucket:           "{{ inp_s3_bucket_nm }}"
+    object:           "{{ inp_vpn_gw1_nm }}_config.xml" 
+    src:              "{{ inp_vpn_gw1_file }}"
+    overwrite:        true
+    mode:             put
+
+# Display s3 file URL, so file may easily be downloaded
+- name: Retrieve s3 bucket URL so GW1 VPN config file may be downloaded
+  s3:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    bucket:           "{{ inp_s3_bucket_nm }}"
+    object:           "{{ inp_vpn_gw1_nm }}_config.xml"
+    mode:             geturl
+  register: vpngw1_url
+
+# display the URL for VPN GW1 Config File
+- name: Display URL for VPN GW1
+  debug: 
+    var: vpngw1_url.url
+ 
+# Create VPN 2
+- name:              "Create VPN Gateway #2"
+  ec2_vpn_connection:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state: 		present
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+      Name:           "{{ inp_vpn_gw2_nm }}"
+    cgw:              "{{ cust_gw2_id }}"    
+    vpn_gw:           "{{ vgw_id }}"
+    vpc:              "{{ vpc_id }}"
+    region:           "{{ aws_region }}" 
+  register: my_vpn_gw2
+
+- name: "Show variables for new VPN Gateway 2"
+  debug:
+    var: my_vpn_gw2
+    verbosity: 3
+
+# Save the VPN Gateway Id into a variable
+- name: Set VPN Gateway 2 ID into a variable
+  set_fact:
+    vpn_gw2_id: "{{ my_vpn_gw2.vpn_conn.vpn_gateway_id}}"
+
+# Display the Contents of the VPN GW2 file 
+- name: Display the Contents of the VPN GW2 configuration file
+  debug:
+    var: my_vpn_gw2.vpn_conn.customer_gateway_configuration
+    verbosity: 3
+
+# Save the Response to a file for VPN Gw2
+- name: Write out the response for GW2 VPN to a file
+  copy: 
+    content: "{{ my_vpn_gw2.vpn_conn.customer_gateway_configuration }}" 
+    dest:    "{{ inp_vpn_gw2_file }}"
+
+# Copy the file to the S3 Bucket supplied
+- name: "Copy the VPN GW2 configuration file to S3 bucket ({{ inp_s3_bucket_nm }} "
+  s3:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    bucket:           "{{ inp_s3_bucket_nm }}"
+    object:           "{{ inp_vpn_gw2_nm }}_config.xml" 
+    src:              "{{ inp_vpn_gw2_file }}"
+    overwrite:        true
+    mode:             put
+
+# Display s3 file URL, so file may easily be downloaded
+- name: Retrieve s3 bucket URL so VPN GW2 config files may be downloaded
+  s3:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    bucket:           "{{ inp_s3_bucket_nm }}"
+    object:           "{{ inp_vpn_gw2_nm }}_config.xml"
+    mode:             geturl
+  register: vpngw2_url
+
+# display the URL for VPN GW2 Config File
+- name: Display URL for VPN GW2
+  debug: 
+    var: vpngw2_url.url
+ 
+
+# Create DHCP Option set
+- name: Create a new DHCP Option Set for the VPC and attach
+  ec2_vpc_dhcp_options:
+    aws_access_key:   "{{ sts_aws_access_key | default(omit) }}"
+    aws_secret_key:   "{{ sts_aws_secret_key | default(omit) }}"
+    security_token:   "{{ sts_security_token | default(omit) }}"
+    state:      present
+    domain_name: "{{ inp_dhcp_opt_set_dom_nm }}"
+    region:      "{{ aws_region }}" 
+    dns_servers: "{{ inp_dhcp_opt_set_dns }}"
+    ntp_servers: "{{ inp_dhcp_ntp_servers }}"
+    tags:
+      Owner:          "{{ vpc_owner }}"
+      Environment:    "{{ vpc_environment }}"
+      Name:           "{{ inp_dhcp_opt_set_nm }}"	
+#    netbios_name_servers:
+#        - 10.0.0.1
+#        - 10.0.1.1
+#    netbios_node_type: 2
+    vpc_id:     "{{ vpc_id }}"
+    delete_old: True
+    inherit_existing: False 
+  register: my_dhcp_opt_set
+
+- name: Show variables for new DHCP option Set
+  debug:
+    var: my_dhcp_opt_set
+    verbosity: 3
+
+# We save the id of the DHCP Option Set in a new variable.
+
+- name:          Save DHCP Option Set ID to Variable     
+  set_fact:
+    dhcp_opt_set_id: "{{ my_dhcp_opt_set.dhcp_options_id }}"
+
+
